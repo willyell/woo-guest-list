@@ -2,7 +2,7 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 1.3
+Version: 1.4
 Date: 2025/03/24
 Author: William Yell
 */
@@ -91,12 +91,11 @@ function egl_render_guest_list_page()
                             $email = $order->get_billing_email();
                             $qty = $item->get_quantity();
 
-                            // Get variation attribute(s)
-                            $variation_data = $item->get_formatted_meta_data('_', true);
+                            // Clean and flatten HTML or shortcodes from meta value
                             $variation = '';
-                            foreach ($variation_data as $meta) {
-                                if (strpos(strtolower($meta->display_key), 'option') !== false || strpos(strtolower($meta->display_key), 'attribute') !== false) {
-                                    $variation .= $meta->display_key . ': ' . $meta->display_value . '; ';
+                            foreach ($item->get_meta_data() as $meta) {
+                                if (strpos(strtolower($meta->key), 'option') !== false || strpos(strtolower($meta->key), 'attribute') !== false) {
+                                    $variation .= sanitize_text_field(wp_strip_all_tags($meta->key)) . ': ' . sanitize_text_field(wp_strip_all_tags($meta->value)) . '; ';
                                 }
                             }
                             $variation = rtrim($variation, '; ');
@@ -149,11 +148,10 @@ add_action('admin_init', function () {
                 $email = $order->get_billing_email();
                 $qty = $item->get_quantity();
 
-                $variation_data = $item->get_formatted_meta_data('_', true);
                 $variation = '';
-                foreach ($variation_data as $meta) {
-                    if (strpos(strtolower($meta->display_key), 'option') !== false || strpos(strtolower($meta->display_key), 'attribute') !== false) {
-                        $variation .= $meta->display_key . ': ' . $meta->display_value . '; ';
+                foreach ($item->get_meta_data() as $meta) {
+                    if (strpos(strtolower($meta->key), 'option') !== false || strpos(strtolower($meta->key), 'attribute') !== false) {
+                        $variation .= sanitize_text_field(wp_strip_all_tags($meta->key)) . ': ' . sanitize_text_field(wp_strip_all_tags($meta->value)) . '; ';
                     }
                 }
                 $variation = rtrim($variation, '; ');
@@ -180,4 +178,5 @@ add_action('admin_init', function () {
     fclose($output);
     exit;
 });
+
 
