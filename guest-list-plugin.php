@@ -2,7 +2,7 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 1.2
+Version: 1.3
 Date: 2025/03/24
 Author: William Yell
 */
@@ -90,7 +90,17 @@ function egl_render_guest_list_page()
                             $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
                             $email = $order->get_billing_email();
                             $qty = $item->get_quantity();
-                            $variation = wc_get_formatted_variation($item, true, false, true);
+
+                            // Get variation attribute(s)
+                            $variation_data = $item->get_formatted_meta_data('_', true);
+                            $variation = '';
+                            foreach ($variation_data as $meta) {
+                                if (strpos(strtolower($meta->display_key), 'option') !== false || strpos(strtolower($meta->display_key), 'attribute') !== false) {
+                                    $variation .= $meta->display_key . ': ' . $meta->display_value . '; ';
+                                }
+                            }
+                            $variation = rtrim($variation, '; ');
+
                             $total = wc_price($item->get_total());
                             $status = ucfirst($order->get_status());
                             $date_created = $order->get_date_created();
@@ -138,11 +148,21 @@ add_action('admin_init', function () {
                 $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
                 $email = $order->get_billing_email();
                 $qty = $item->get_quantity();
-                $variation = wc_get_formatted_variation($item, true, false, true);
+
+                $variation_data = $item->get_formatted_meta_data('_', true);
+                $variation = '';
+                foreach ($variation_data as $meta) {
+                    if (strpos(strtolower($meta->display_key), 'option') !== false || strpos(strtolower($meta->display_key), 'attribute') !== false) {
+                        $variation .= $meta->display_key . ': ' . $meta->display_value . '; ';
+                    }
+                }
+                $variation = rtrim($variation, '; ');
+
                 $total = $item->get_total();
                 $status = ucfirst($order->get_status());
                 $date_created = $order->get_date_created();
                 $date = $date_created ? $date_created->date('Y-m-d H:i') : '';
+
                 fputcsv($output, [
                     $order->get_id(),
                     $status,
@@ -160,3 +180,4 @@ add_action('admin_init', function () {
     fclose($output);
     exit;
 });
+
