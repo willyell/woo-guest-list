@@ -2,15 +2,14 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 1.0
+Version: 1.1
+Date: 2025/03/24
 Author: William Yell
 */
 
-// Exit if accessed directly
-if ( ! defined( 'ABSPATH' ) ) exit;
+if (!defined('ABSPATH')) exit;
 
-// Add admin menu
-add_action('admin_menu', function() {
+add_action('admin_menu', function () {
     add_submenu_page(
         'woocommerce',
         'Guest List',
@@ -21,7 +20,8 @@ add_action('admin_menu', function() {
     );
 });
 
-function egl_render_guest_list_page() {
+function egl_render_guest_list_page()
+{
     ?>
     <div class="wrap">
         <h1>Event Guest List</h1>
@@ -63,7 +63,7 @@ function egl_render_guest_list_page() {
                 <tbody>
                 <?php
                 $orders = wc_get_orders([
-                    'limit' => -1,
+                    'limit' => 500,
                     'status' => ['completed', 'processing', 'on-hold'],
                 ]);
                 foreach ($orders as $order) {
@@ -72,20 +72,16 @@ function egl_render_guest_list_page() {
                             $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
                             $email = $order->get_billing_email();
                             $qty = $item->get_quantity();
-                            $option = '';
-                            foreach ($item->get_meta_data() as $meta) {
-                                if (strtolower($meta->key) === 'product option') {
-                                    $option = $meta->value;
-                                    break;
-                                }
-                            }
+                            $option = $item->get_meta('Product Option');
+                            $date_created = $order->get_date_created();
+                            $date = $date_created ? $date_created->date('Y-m-d H:i') : '';
                             echo '<tr>';
-                            echo '<td>' . $order->get_id() . '</td>';
+                            echo '<td>' . esc_html($order->get_id()) . '</td>';
                             echo '<td>' . esc_html($name) . '</td>';
                             echo '<td>' . esc_html($email) . '</td>';
                             echo '<td>' . esc_html($qty) . '</td>';
                             echo '<td>' . esc_html($option) . '</td>';
-                            echo '<td>' . esc_html($order->get_date_created()->date('Y-m-d H:i')) . '</td>';
+                            echo '<td>' . esc_html($date) . '</td>';
                             echo '</tr>';
                         }
                     }
@@ -98,8 +94,7 @@ function egl_render_guest_list_page() {
     <?php
 }
 
-// Handle CSV export
-add_action('admin_init', function() {
+add_action('admin_init', function () {
     if (!current_user_can('manage_woocommerce') || empty($_POST['egl_export_csv']) || empty($_POST['product_id'])) return;
 
     $product_id = intval($_POST['product_id']);
@@ -111,7 +106,7 @@ add_action('admin_init', function() {
     fputcsv($output, ['Order ID', 'Name', 'Email', 'Quantity', 'Product Option', 'Purchase Date']);
 
     $orders = wc_get_orders([
-        'limit' => -1,
+        'limit' => 500,
         'status' => ['completed', 'processing', 'on-hold'],
     ]);
 
@@ -121,20 +116,16 @@ add_action('admin_init', function() {
                 $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
                 $email = $order->get_billing_email();
                 $qty = $item->get_quantity();
-                $option = '';
-                foreach ($item->get_meta_data() as $meta) {
-                    if (strtolower($meta->key) === 'product option') {
-                        $option = $meta->value;
-                        break;
-                    }
-                }
+                $option = $item->get_meta('Product Option');
+                $date_created = $order->get_date_created();
+                $date = $date_created ? $date_created->date('Y-m-d H:i') : '';
                 fputcsv($output, [
                     $order->get_id(),
                     $name,
                     $email,
                     $qty,
                     $option,
-                    $order->get_date_created()->date('Y-m-d H:i')
+                    $date
                 ]);
             }
         }
@@ -143,3 +134,4 @@ add_action('admin_init', function() {
     fclose($output);
     exit;
 });
+
