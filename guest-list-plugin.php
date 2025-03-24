@@ -2,7 +2,7 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 1.4
+Version: 1.5
 Date: 2025/03/24
 Author: William Yell
 */
@@ -28,13 +28,25 @@ function egl_render_guest_list_page()
         <form method="get">
             <input type="hidden" name="page" value="guest-list" />
             <label for="product_cat">Select Category:</label>
-            <select name="product_cat" id="product_cat">
+            <select name="product_cat" id="product_cat" onchange="this.form.submit()">
                 <option value="">-- All Categories --</option>
                 <?php
                 $categories = get_terms(['taxonomy' => 'product_cat', 'hide_empty' => false]);
                 foreach ($categories as $cat) {
                     $selected = (isset($_GET['product_cat']) && $_GET['product_cat'] == $cat->term_id) ? 'selected' : '';
                     echo "<option value='{$cat->term_id}' $selected>{$cat->name}</option>";
+                }
+                ?>
+            </select>
+
+            <label for="filter_year">Year:</label>
+            <select name="filter_year" id="filter_year">
+                <option value="">-- Any Year --</option>
+                <?php
+                $current_year = date('Y');
+                for ($y = $current_year; $y >= $current_year - 10; $y--) {
+                    $selected = (isset($_GET['filter_year']) && $_GET['filter_year'] == $y) ? 'selected' : '';
+                    echo "<option value='{$y}' $selected>{$y}</option>";
                 }
                 ?>
             </select>
@@ -63,6 +75,7 @@ function egl_render_guest_list_page()
             <form method="post">
                 <input type="hidden" name="egl_export_csv" value="1">
                 <input type="hidden" name="product_id" value="<?php echo esc_attr($_GET['product_id']); ?>">
+                <input type="hidden" name="filter_year" value="<?php echo esc_attr($_GET['filter_year'] ?? ''); ?>">
                 <button type="submit" class="button">Export CSV</button>
             </form>
             <table class="widefat fixed striped">
@@ -80,29 +93,31 @@ function egl_render_guest_list_page()
                 </thead>
                 <tbody>
                 <?php
+                $year_filter = isset($_GET['filter_year']) ? $_GET['filter_year'] : '';
                 $orders = wc_get_orders([
                     'limit' => 500,
                     'status' => ['completed', 'processing', 'on-hold'],
                 ]);
                 foreach ($orders as $order) {
+                    $date_created = $order->get_date_created();
+                    if ($year_filter && $date_created && $date_created->format('Y') != $year_filter) continue;
+
                     foreach ($order->get_items() as $item) {
                         if ($item->get_product_id() == $_GET['product_id']) {
                             $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
                             $email = $order->get_billing_email();
                             $qty = $item->get_quantity();
 
-                            // Clean and flatten HTML or shortcodes from meta value
                             $variation = '';
                             foreach ($item->get_meta_data() as $meta) {
                                 if (strpos(strtolower($meta->key), 'option') !== false || strpos(strtolower($meta->key), 'attribute') !== false) {
-                                    $variation .= sanitize_text_field(wp_strip_all_tags($meta->key)) . ': ' . sanitize_text_field(wp_strip_all_tags($meta->value)) . '; ';
+                                    $variation .= sanitize_text_field(wp_strip_all_tags($meta->value)) . ' ';
                                 }
                             }
-                            $variation = rtrim($variation, '; ');
+                            $variation = trim($variation);
 
                             $total = wc_price($item->get_total());
                             $status = ucfirst($order->get_status());
-                            $date_created = $order->get_date_created();
                             $date = $date_created ? $date_created->date('Y-m-d H:i') : '';
                             echo '<tr>';
                             echo '<td>' . esc_html($order->get_id()) . '</td>';
@@ -129,6 +144,7 @@ add_action('admin_init', function () {
     if (!current_user_can('manage_woocommerce') || empty($_POST['egl_export_csv']) || empty($_POST['product_id'])) return;
 
     $product_id = intval($_POST['product_id']);
+    $year_filter = isset($_POST['filter_year']) ? $_POST['filter_year'] : '';
     $filename = 'guest-list-' . $product_id . '-' . date('Ymd-His') . '.csv';
 
     header('Content-Type: text/csv');
@@ -142,6 +158,9 @@ add_action('admin_init', function () {
     ]);
 
     foreach ($orders as $order) {
+        $date_created = $order->get_date_created();
+        if ($year_filter && $date_created && $date_created->format('Y') != $year_filter) continue;
+
         foreach ($order->get_items() as $item) {
             if ($item->get_product_id() == $product_id) {
                 $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
@@ -151,14 +170,13 @@ add_action('admin_init', function () {
                 $variation = '';
                 foreach ($item->get_meta_data() as $meta) {
                     if (strpos(strtolower($meta->key), 'option') !== false || strpos(strtolower($meta->key), 'attribute') !== false) {
-                        $variation .= sanitize_text_field(wp_strip_all_tags($meta->key)) . ': ' . sanitize_text_field(wp_strip_all_tags($meta->value)) . '; ';
+                        $variation .= sanitize_text_field(wp_strip_all_tags($meta->value)) . ' ';
                     }
                 }
-                $variation = rtrim($variation, '; ');
+                $variation = trim($variation);
 
                 $total = $item->get_total();
                 $status = ucfirst($order->get_status());
-                $date_created = $order->get_date_created();
                 $date = $date_created ? $date_created->date('Y-m-d H:i') : '';
 
                 fputcsv($output, [
