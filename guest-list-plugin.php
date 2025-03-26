@@ -2,7 +2,7 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 1.9
+Version: 1.9.1
 Date: 2025/03/26
 Author: William Yell
 */
@@ -78,7 +78,7 @@ function egl_render_guest_list_page()
             $summary = ['processing' => 0, 'on-hold' => 0, 'completed' => 0];
             $payment_summary = [];
             $variation_summary = [];
-            $total_revenue = 0;
+            $total_revenue = 0.0;
 
             $orders = wc_get_orders([
                 'limit' => 500,
@@ -95,8 +95,9 @@ function egl_render_guest_list_page()
                     if ($item->get_product_id() == $product_id) {
                         $status = $order->get_status();
                         $qty = $item->get_quantity();
-                        $item_total = $item->get_total();
+                        $item_total = (float) $item->get_total();
 
+                        if (!isset($summary[$status])) $summary[$status] = 0;
                         $summary[$status] += $qty;
                         $total_revenue += $item_total;
 
@@ -107,11 +108,12 @@ function egl_render_guest_list_page()
 
                         $variation = '';
                         foreach ($item->get_meta_data() as $meta) {
-                            if (strpos(strtolower($meta->key), 'option') !== false || strpos(strtolower($meta->key), 'attribute') !== false) {
+                            if (is_string($meta->key) && (strpos(strtolower($meta->key), 'option') !== false || strpos(strtolower($meta->key), 'attribute') !== false)) {
                                 $variation .= sanitize_text_field(wp_strip_all_tags($meta->value)) . ' ';
                             }
                         }
                         $variation = trim($variation);
+                        if ($variation === '') $variation = 'Standard';
                         if (!isset($variation_summary[$variation])) {
                             $variation_summary[$variation] = 0;
                         }
@@ -130,9 +132,10 @@ function egl_render_guest_list_page()
             echo '</p>';
             echo "<p><strong>Revenue by Variation:</strong><br>";
             foreach ($variation_summary as $variation => $amount) {
-                echo esc_html($variation ?: 'Standard') . ': ' . wc_price($amount) . '<br>';
+                echo esc_html($variation) . ': ' . wc_price($amount) . '<br>';
             }
             echo '</p>';
             ?>
 
             <!-- Existing table and export form remain below -->
+
