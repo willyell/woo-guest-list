@@ -2,7 +2,7 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 2.1.0
+Version: 2.1.1
 Date: 2025/03/26
 Author: William Yell
 */
@@ -158,7 +158,7 @@ function egl_render_guest_list_page()
                     <input type="hidden" name="egl_export_csv" value="1">
                     <input type="hidden" name="product_id" value="' . esc_attr($product_id) . '">
                     <input type="hidden" name="filter_year" value="' . esc_attr($year_filter) . '">
-                    <button type="submit" class="button">Download Guest List (CSV)</button>
+                    <button type="submit" class="button button-primary">Download Guest List (CSV)</button>
                 </form>';
 
             if (!empty($guest_rows)) {
@@ -189,5 +189,65 @@ function egl_render_guest_list_page()
         endif;
         ?>
     </div>
+<?php
+}
+
+add_action('admin_init', function () {
+    if (!current_user_can('manage_woocommerce') || empty($_POST['egl_export_csv']) || empty($_POST['product_id'])) return;
+
+    $product_id = intval($_POST['product_id']);
+    $year_filter = isset($_POST['filter_year']) ? $_POST['filter_year'] : '';
+    $filename = 'guest-list-' . $product_id . '-' . date('Ymd-His') . '.csv';
+
+    header('Content-Type: text/csv');
+    header("Content-Disposition: attachment; filename={$filename}");
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['Order ID', 'Status', 'Name', 'Email', 'Quantity', 'Variation', 'Order Value', 'Purchase Date']);
+
+    $orders = wc_get_orders([
+        'limit' => 500,
+        'status' => ['completed', 'processing', 'on-hold'],
+    ]);
+
+    foreach ($orders as $order) {
+        $date_created = $order->get_date_created();
+        if ($year_filter && $date_created && $date_created->format('Y') != $year_filter) continue;
+
+        foreach ($order->get_items() as $item) {
+            if ($item->get_product_id() == $product_id) {
+                $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
+                $email = $order->get_billing_email();
+                $qty = $item->get_quantity();
+                $variation = '';
+
+                foreach ($item->get_meta_data() as $meta) {
+                    if (is_string($meta->key) && (strpos(strtolower($meta->key), 'option') !== false || strpos(strtolower($meta->key), 'attribute') !== false)) {
+                        $variation .= sanitize_text_field(wp_strip_all_tags($meta->value)) . ' ';
+                    }
+                }
+                $variation = trim($variation);
+                if ($variation === '') $variation = 'Standard';
+
+                $total = $item->get_total();
+                $status = ucfirst($order->get_status());
+                $date = $date_created ? $date_created->date('Y-m-d H:i') : '';
+
+                fputcsv($output, [
+                    $order->get_id(),
+                    $status,
+                    $name,
+                    $email,
+                    $qty,
+                    $variation,
+                    $total,
+                    $date
+                ]);
+            }
+        }
+    }
+
+    fclose($output);
+    exit;
+});
 <?php
 } // END function
