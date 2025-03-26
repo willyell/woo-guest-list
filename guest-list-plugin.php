@@ -2,7 +2,7 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 1.5
+Version: 1.6
 Date: 2025/03/24
 Author: William Yell
 */
@@ -71,6 +71,33 @@ function egl_render_guest_list_page()
 
         <?php if (!empty($_GET['product_id'])): ?>
             <hr>
+            <h2>Guest List Summary</h2>
+            <?php
+            $year_filter = isset($_GET['filter_year']) ? $_GET['filter_year'] : '';
+            $product_id = $_GET['product_id'];
+            $summary = ['processing' => 0, 'on-hold' => 0, 'completed' => 0];
+
+            $orders = wc_get_orders([
+                'limit' => 500,
+                'status' => ['completed', 'processing', 'on-hold'],
+            ]);
+
+            foreach ($orders as $order) {
+                $date_created = $order->get_date_created();
+                if ($year_filter && $date_created && $date_created->format('Y') != $year_filter) continue;
+
+                foreach ($order->get_items() as $item) {
+                    if ($item->get_product_id() == $product_id) {
+                        $status = $order->get_status();
+                        $summary[$status] += $item->get_quantity();
+                    }
+                }
+            }
+
+            $total_tickets = array_sum($summary);
+            echo "<p><strong>Processing:</strong> {$summary['processing']} &nbsp; <strong>On-Hold:</strong> {$summary['on-hold']} &nbsp; <strong>Completed:</strong> {$summary['completed']} &nbsp; <strong>Total Tickets:</strong> {$total_tickets}</p>";
+            ?>
+
             <h2>Guest List</h2>
             <form method="post">
                 <input type="hidden" name="egl_export_csv" value="1">
@@ -78,6 +105,11 @@ function egl_render_guest_list_page()
                 <input type="hidden" name="filter_year" value="<?php echo esc_attr($_GET['filter_year'] ?? ''); ?>">
                 <button type="submit" class="button">Export CSV</button>
             </form>
+            <style>
+                .egl-status-completed { background-color: #e6ffed; }
+                .egl-status-on-hold { background-color: #ffe6e6; }
+                .egl-status-processing { background-color: #fff3e0; }
+            </style>
             <table class="widefat fixed striped">
                 <thead>
                     <tr>
@@ -93,11 +125,6 @@ function egl_render_guest_list_page()
                 </thead>
                 <tbody>
                 <?php
-                $year_filter = isset($_GET['filter_year']) ? $_GET['filter_year'] : '';
-                $orders = wc_get_orders([
-                    'limit' => 500,
-                    'status' => ['completed', 'processing', 'on-hold'],
-                ]);
                 foreach ($orders as $order) {
                     $date_created = $order->get_date_created();
                     if ($year_filter && $date_created && $date_created->format('Y') != $year_filter) continue;
@@ -117,11 +144,13 @@ function egl_render_guest_list_page()
                             $variation = trim($variation);
 
                             $total = wc_price($item->get_total());
-                            $status = ucfirst($order->get_status());
+                            $status = $order->get_status();
+                            $status_label = ucfirst($status);
+                            $row_class = 'egl-status-' . $status;
                             $date = $date_created ? $date_created->date('Y-m-d H:i') : '';
-                            echo '<tr>';
+                            echo "<tr class='{$row_class}'>";
                             echo '<td>' . esc_html($order->get_id()) . '</td>';
-                            echo '<td>' . esc_html($status) . '</td>';
+                            echo '<td>' . esc_html($status_label) . '</td>';
                             echo '<td>' . esc_html($name) . '</td>';
                             echo '<td>' . esc_html($email) . '</td>';
                             echo '<td>' . esc_html($qty) . '</td>';
@@ -196,5 +225,4 @@ add_action('admin_init', function () {
     fclose($output);
     exit;
 });
-
 
