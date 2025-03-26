@@ -249,5 +249,4 @@ add_action('admin_init', function () {
     fclose($output);
     exit;
 });
-<?php
-} // END function
+
