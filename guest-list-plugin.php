@@ -2,7 +2,7 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 1.9.2
+Version: 2.0.0
 Date: 2025/03/26
 Author: William Yell
 */
@@ -79,6 +79,7 @@ function egl_render_guest_list_page()
             $payment_summary = [];
             $variation_summary = [];
             $total_revenue = 0.0;
+            $guest_rows = '';
 
             $orders = wc_get_orders([
                 'limit' => 500,
@@ -90,10 +91,11 @@ function egl_render_guest_list_page()
                 if ($year_filter && $date_created && $date_created->format('Y') != $year_filter) continue;
 
                 $payment_method = $order->get_payment_method_title();
+                $status = $order->get_status();
+                $status_class = 'egl-status-' . $status;
 
                 foreach ($order->get_items() as $item) {
                     if ($item->get_product_id() == $product_id) {
-                        $status = $order->get_status();
                         $qty = $item->get_quantity();
                         $item_total = (float) $item->get_total();
 
@@ -118,6 +120,14 @@ function egl_render_guest_list_page()
                             $variation_summary[$variation] = 0;
                         }
                         $variation_summary[$variation] += $item_total;
+
+                        $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
+                        $email = $order->get_billing_email();
+                        $date = $date_created ? $date_created->date('Y-m-d H:i') : '';
+
+                        $guest_rows .= "<tr class='{$status_class}'>";
+                        $guest_rows .= "<td>{$order->get_id()}</td><td>{$status}</td><td>{$name}</td><td>{$email}</td><td>{$qty}</td><td>{$variation}</td><td>" . wc_price($item_total) . "</td><td>{$date}</td>";
+                        $guest_rows .= "</tr>";
                     }
                 }
             }
@@ -135,11 +145,35 @@ function egl_render_guest_list_page()
                 echo esc_html($variation) . ': ' . wc_price($amount) . '<br>';
             }
             echo '</p>';
-            ?>
-        <?php endif; ?>
-    </div>
-    <?php
-} // <-- this was missing
-?>
 
+            if (!empty($guest_rows)) {
+                echo '<style>
+                .egl-status-completed { background-color: #e6ffed; }
+                .egl-status-on-hold { background-color: #ffe6e6; }
+                .egl-status-processing { background-color: #fff8e1; }
+                </style>';
+                echo '<h2>Guest List</h2>';
+                echo '<table class="widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Status</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Quantity</th>
+                                <th>Variation</th>
+                                <th>Order Value</th>
+                                <th>Purchase Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>' . $guest_rows . '</tbody>
+                      </table>';
+            } else {
+                echo '<p>No matching guests found for this product and year.</p>';
+            }
+        endif;
+        ?>
+    </div>
+<?php
+} // END function
 
