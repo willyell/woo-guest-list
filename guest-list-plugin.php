@@ -2,7 +2,7 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 2.0.0
+Version: 2.1.0
 Date: 2025/03/26
 Author: William Yell
 */
@@ -78,6 +78,7 @@ function egl_render_guest_list_page()
             $summary = ['processing' => 0, 'on-hold' => 0, 'completed' => 0];
             $payment_summary = [];
             $variation_summary = [];
+            $variation_counts = [];
             $total_revenue = 0.0;
             $guest_rows = '';
 
@@ -116,10 +117,13 @@ function egl_render_guest_list_page()
                         }
                         $variation = trim($variation);
                         if ($variation === '') $variation = 'Standard';
+
                         if (!isset($variation_summary[$variation])) {
                             $variation_summary[$variation] = 0;
+                            $variation_counts[$variation] = 0;
                         }
                         $variation_summary[$variation] += $item_total;
+                        $variation_counts[$variation] += $qty;
 
                         $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
                         $email = $order->get_billing_email();
@@ -140,11 +144,22 @@ function egl_render_guest_list_page()
                 echo esc_html($method) . ': ' . wc_price($amount) . '<br>';
             }
             echo '</p>';
-            echo "<p><strong>Revenue by Variation:</strong><br>";
-            foreach ($variation_summary as $variation => $amount) {
-                echo esc_html($variation) . ': ' . wc_price($amount) . '<br>';
+
+            echo '<h3>Variation Breakdown</h3>';
+            echo '<table class="widefat fixed striped">
+                    <thead><tr><th>Variation</th><th>Sales Count</th><th>Total Value</th></tr></thead><tbody>';
+            foreach ($variation_summary as $variation => $value) {
+                $count = $variation_counts[$variation];
+                echo '<tr><td>' . esc_html($variation) . '</td><td>' . intval($count) . '</td><td>' . wc_price($value) . '</td></tr>';
             }
-            echo '</p>';
+            echo '</tbody></table>';
+
+            echo '<form method="post">
+                    <input type="hidden" name="egl_export_csv" value="1">
+                    <input type="hidden" name="product_id" value="' . esc_attr($product_id) . '">
+                    <input type="hidden" name="filter_year" value="' . esc_attr($year_filter) . '">
+                    <button type="submit" class="button">Download Guest List (CSV)</button>
+                </form>';
 
             if (!empty($guest_rows)) {
                 echo '<style>
@@ -176,4 +191,3 @@ function egl_render_guest_list_page()
     </div>
 <?php
 } // END function
-
