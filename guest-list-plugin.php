@@ -2,9 +2,10 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 2.1.3
+Version: 2.1.4
 Date: 2025/07/10
- * Updated variation display to show full attribute key/value pairs
+ * Fixed variation display logic and code structure
+ * Improved variation data extraction
 Author: William Yell
 */
 
@@ -20,6 +21,39 @@ add_action('admin_menu', function () {
         'egl_render_guest_list_page'
     );
 });
+
+// Helper function to extract variation data
+function egl_get_variation_display($item) {
+    $variation_parts = [];
+    
+    // Get variation data from meta
+    foreach ($item->get_meta_data() as $meta) {
+        if (strpos($meta->key, 'attribute_') !== false) {
+            $attr_name = ucwords(str_replace(['attribute_', '-', '_'], ['', ' ', ' '], $meta->key));
+            $attr_value = ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($meta->value)));
+            $variation_parts[] = "$attr_name: $attr_value";
+        }
+    }
+    
+    // Also check if it's a variation product and get variation attributes
+    $product = $item->get_product();
+    if ($product && $product->is_type('variation')) {
+        $variation_attributes = $product->get_variation_attributes();
+        foreach ($variation_attributes as $attr_name => $attr_value) {
+            $clean_attr_name = ucwords(str_replace(['attribute_', 'pa_', '-', '_'], ['', '', ' ', ' '], $attr_name));
+            $clean_attr_value = ucwords(str_replace(['-', '_'], ' ', $attr_value));
+            $formatted_attr = "$clean_attr_name: $clean_attr_value";
+            
+            // Avoid duplicates
+            if (!in_array($formatted_attr, $variation_parts)) {
+                $variation_parts[] = $formatted_attr;
+            }
+        }
+    }
+    
+    $variation = implode(', ', $variation_parts);
+    return $variation ?: 'Standard';
+}
 
 function egl_render_guest_list_page()
 {
@@ -110,19 +144,8 @@ function egl_render_guest_list_page()
                         }
                         $payment_summary[$payment_method] += $item_total;
 
-                        $variation = '';
-                        $attributes = $item->get_meta_data();
-                        foreach ($item->get_meta_data() as $meta) {
-    if (strpos($meta->key, 'attribute_') !== false) {
-        $attr_name = ucwords(str_replace(['attribute_', '-', '_'], ['', ' ', ' '], $meta->key));
-        $attr_value = ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($meta->value)));
-        $variation .= "$attr_name: $attr_value, ";
-    }
-}
-$variation = rtrim($variation, ',');
-                        }
-                        $variation = trim($variation);
-                        if ($variation === '') $variation = 'Standard';
+                        // Use the helper function to get variation display
+                        $variation = egl_get_variation_display($item);
 
                         if (!isset($variation_summary[$variation])) {
                             $variation_summary[$variation] = 0;
@@ -225,15 +248,8 @@ add_action('admin_init', function () {
                 $email = $order->get_billing_email();
                 $qty = $item->get_quantity();
 
-                $variation = '';
-                $attributes = $item->get_meta_data();
-                foreach ($attributes as $meta) {
-                    if (strpos($meta->key, 'attribute_') !== false) {
-                        $variation .= ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($meta->value))) . ' ';
-                    }
-                }
-                $variation = trim($variation);
-                if ($variation === '') $variation = 'Standard';
+                // Use the same helper function for consistency
+                $variation = egl_get_variation_display($item);
 
                 $total = $item->get_total();
                 $status = ucfirst($order->get_status());
