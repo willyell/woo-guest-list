@@ -110,13 +110,13 @@ function egl_render_guest_list_page()
                         $payment_summary[$payment_method] += $item_total;
 
                         $variation = '';
-                        $attributes = $item->get_variation_attributes();
-                        if (!empty($attributes)) {
-                            $cleaned = array_map(function ($val) {
-                                return ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($val)));
-                            }, $attributes);
-                            $variation = implode(', ', $cleaned);
+                        $attributes = $item->get_meta_data();
+                        foreach ($attributes as $meta) {
+                            if (strpos($meta->key, 'attribute_') !== false) {
+                                $variation .= ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($meta->value))) . ' ';
+                            }
                         }
+                        $variation = trim($variation);
                         if ($variation === '') $variation = 'Standard';
 
                         if (!isset($variation_summary[$variation])) {
@@ -219,11 +219,12 @@ add_action('admin_init', function () {
                 $name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
                 $email = $order->get_billing_email();
                 $qty = $item->get_quantity();
-                $variation = '';
 
-                foreach ($item->get_meta_data() as $meta) {
-                    if (is_string($meta->key) && (strpos(strtolower($meta->key), 'option') !== false || strpos(strtolower($meta->key), 'attribute') !== false)) {
-                        $variation .= sanitize_text_field(wp_strip_all_tags($meta->value)) . ' ';
+                $variation = '';
+                $attributes = $item->get_meta_data();
+                foreach ($attributes as $meta) {
+                    if (strpos($meta->key, 'attribute_') !== false) {
+                        $variation .= ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($meta->value))) . ' ';
                     }
                 }
                 $variation = trim($variation);
@@ -250,4 +251,3 @@ add_action('admin_init', function () {
     fclose($output);
     exit;
 });
-
