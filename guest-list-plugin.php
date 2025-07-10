@@ -2,8 +2,8 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 2.1.1
-Date: 2025/03/26
+Version: 2.1.2
+Date: 2025/07/10
 Author: William Yell
 */
 
