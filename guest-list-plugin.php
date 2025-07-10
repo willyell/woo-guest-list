@@ -25,28 +25,74 @@ add_action('admin_menu', function () {
 // Helper function to extract variation data
 function egl_get_variation_display($item) {
     $variation_parts = [];
+    $product = $item->get_product();
     
-    // Get variation data from meta
-    foreach ($item->get_meta_data() as $meta) {
-        if (strpos($meta->key, 'attribute_') !== false) {
-            $attr_name = ucwords(str_replace(['attribute_', '-', '_'], ['', ' ', ' '], $meta->key));
-            $attr_value = ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($meta->value)));
-            $variation_parts[] = "$attr_name: $attr_value";
+    // Check if it's a variation product
+    if ($product && $product->is_type('variation')) {
+        // Get the parent product to access attribute labels
+        $parent_product = wc_get_product($product->get_parent_id());
+        
+        // Get variation attributes
+        $variation_attributes = $product->get_variation_attributes();
+        
+        foreach ($variation_attributes as $attr_name => $attr_value) {
+            // Get the attribute label from the parent product
+            $attribute_label = '';
+            if ($parent_product) {
+                $attributes = $parent_product->get_attributes();
+                $clean_attr_name = str_replace('attribute_', '', $attr_name);
+                
+                foreach ($attributes as $attribute) {
+                    if ($attribute->get_name() === $clean_attr_name || $attribute->get_name() === 'pa_' . $clean_attr_name) {
+                        $attribute_label = $attribute->get_label();
+                        break;
+                    }
+                }
+            }
+            
+            // Fallback to cleaning up the attribute name if no label found
+            if (empty($attribute_label)) {
+                $attribute_label = ucwords(str_replace(['attribute_', 'pa_', '-', '_'], ['', '', ' ', ' '], $attr_name));
+            }
+            
+            // Get the term name for taxonomy-based attributes
+            $attr_display_value = $attr_value;
+            if (strpos($attr_name, 'pa_') !== false) {
+                $term = get_term_by('slug', $attr_value, str_replace('attribute_', '', $attr_name));
+                if ($term) {
+                    $attr_display_value = $term->name;
+                }
+            } else {
+                $attr_display_value = ucwords(str_replace(['-', '_'], ' ', $attr_value));
+            }
+            
+            $variation_parts[] = "$attribute_label: $attr_display_value";
         }
     }
     
-    // Also check if it's a variation product and get variation attributes
-    $product = $item->get_product();
-    if ($product && $product->is_type('variation')) {
-        $variation_attributes = $product->get_variation_attributes();
-        foreach ($variation_attributes as $attr_name => $attr_value) {
-            $clean_attr_name = ucwords(str_replace(['attribute_', 'pa_', '-', '_'], ['', '', ' ', ' '], $attr_name));
-            $clean_attr_value = ucwords(str_replace(['-', '_'], ' ', $attr_value));
-            $formatted_attr = "$clean_attr_name: $clean_attr_value";
+    // Fallback: Check item meta data for variation info
+    if (empty($variation_parts)) {
+        foreach ($item->get_meta_data() as $meta) {
+            $key = $meta->get_data()['key'];
+            $value = $meta->get_data()['value'];
             
-            // Avoid duplicates
-            if (!in_array($formatted_attr, $variation_parts)) {
-                $variation_parts[] = $formatted_attr;
+            // Look for variation attributes in meta data
+            if (strpos($key, 'attribute_') !== false || strpos($key, 'pa_') !== false) {
+                $attr_name = ucwords(str_replace(['attribute_', 'pa_', '-', '_'], ['', '', ' ', ' '], $key));
+                $attr_value = ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($value)));
+                $variation_parts[] = "$attr_name: $attr_value";
+            }
+        }
+    }
+    
+    // Also check for any custom variation data that might be stored differently
+    if (empty($variation_parts) && $product) {
+        $variation_data = $item->get_variation_id() ? get_post_meta($item->get_variation_id()) : [];
+        foreach ($variation_data as $key => $value) {
+            if (strpos($key, 'attribute_') !== false && !empty($value[0])) {
+                $attr_name = ucwords(str_replace(['attribute_', 'pa_', '-', '_'], ['', '', ' ', ' '], $key));
+                $attr_value = ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($value[0])));
+                $variation_parts[] = "$attr_name: $attr_value";
             }
         }
     }
