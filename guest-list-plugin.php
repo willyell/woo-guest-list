@@ -2,8 +2,9 @@
 /*
 Plugin Name: Event Guest List for WooCommerce
 Description: Custom plugin to generate guest lists for ticketed WooCommerce products.
-Version: 2.1.2
+Version: 2.1.3
 Date: 2025/07/10
+ * Updated variation display to show full attribute key/value pairs
 Author: William Yell
 */
 
@@ -111,10 +112,14 @@ function egl_render_guest_list_page()
 
                         $variation = '';
                         $attributes = $item->get_meta_data();
-                        foreach ($attributes as $meta) {
-                            if (strpos($meta->key, 'attribute_') !== false) {
-                                $variation .= ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($meta->value))) . ' ';
-                            }
+                        foreach ($item->get_meta_data() as $meta) {
+    if (strpos($meta->key, 'attribute_') !== false) {
+        $attr_name = ucwords(str_replace(['attribute_', '-', '_'], ['', ' ', ' '], $meta->key));
+        $attr_value = ucwords(str_replace(['-', '_'], ' ', sanitize_text_field($meta->value)));
+        $variation .= "$attr_name: $attr_value, ";
+    }
+}
+$variation = rtrim($variation, ',');
                         }
                         $variation = trim($variation);
                         if ($variation === '') $variation = 'Standard';
